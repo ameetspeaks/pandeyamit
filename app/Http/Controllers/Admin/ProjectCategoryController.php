@@ -5,29 +5,30 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ProjectCategory;
 use Illuminate\Http\Request;
+use Illuminate\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
 
 class ProjectCategoryController extends Controller
 {
-    public function index()
+    public function index(): View
     {
-        $categories = ProjectCategory::latest()->paginate(10);
-        return view('admin.project-categories.index', compact('categories'));
+        $categories = ProjectCategory::latest()->paginate(15);
+        return view('admin.project_categories.index', compact('categories'));
     }
 
-    public function create()
+    public function create(): View
     {
-        return view('admin.project-categories.create');
+        return view('admin.project_categories.create');
     }
 
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'name' => 'required|max:255|unique:project_categories',
-            'description' => 'nullable',
+            'name' => 'required|string|max:255',
+            'slug' => 'required|string|max:255|unique:project_categories',
+            'description' => 'nullable|string',
         ]);
-
-        $validated['slug'] = Str::slug($validated['name']);
 
         ProjectCategory::create($validated);
 
@@ -35,19 +36,24 @@ class ProjectCategoryController extends Controller
             ->with('success', 'Project category created successfully.');
     }
 
-    public function edit(ProjectCategory $projectCategory)
+    public function show(ProjectCategory $projectCategory): View
     {
-        return view('admin.project-categories.edit', compact('projectCategory'));
+        // Typically not needed for admin categories, redirect to edit or index
+        return view('admin.project_categories.edit', ['category' => $projectCategory]);
     }
 
-    public function update(Request $request, ProjectCategory $projectCategory)
+    public function edit(ProjectCategory $projectCategory): View
+    {
+        return view('admin.project_categories.edit', ['category' => $projectCategory]);
+    }
+
+    public function update(Request $request, ProjectCategory $projectCategory): RedirectResponse
     {
         $validated = $request->validate([
-            'name' => 'required|max:255|unique:project_categories,name,' . $projectCategory->id,
-            'description' => 'nullable',
+            'name' => 'required|string|max:255',
+            'slug' => 'required|string|max:255|unique:project_categories,slug,' . $projectCategory->id,
+            'description' => 'nullable|string',
         ]);
-
-        $validated['slug'] = Str::slug($validated['name']);
 
         $projectCategory->update($validated);
 
@@ -55,8 +61,9 @@ class ProjectCategoryController extends Controller
             ->with('success', 'Project category updated successfully.');
     }
 
-    public function destroy(ProjectCategory $projectCategory)
+    public function destroy(ProjectCategory $projectCategory): RedirectResponse
     {
+        // Add check if category is used by projects before deleting?
         $projectCategory->delete();
 
         return redirect()->route('admin.project-categories.index')

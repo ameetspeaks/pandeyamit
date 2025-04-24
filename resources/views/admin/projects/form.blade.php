@@ -9,176 +9,173 @@
         @method('PUT')
     @endif
 
-    <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-        <!-- Title -->
-        <div class="sm:col-span-4">
-            <label for="title" class="block text-sm font-medium text-gray-700">Title</label>
-            <div class="mt-1">
-                <input type="text" name="title" id="title"
-                       value="{{ old('title', $project?->title) }}"
-                       class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+    <div class="row">
+        <div class="col-md-8">
+            {{-- Title --}}
+            <div class="mb-3">
+                <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
+                <input type="text" class="form-control @error('title') is-invalid @enderror" id="title" name="title" value="{{ old('title', $project->title ?? '') }}" required>
+                @error('title')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
             </div>
-            @error('title')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
+
+            {{-- Description --}}
+            <div class="mb-3">
+                <label for="description" class="form-label">Description <span class="text-danger">*</span></label>
+                <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="10" required>{{ old('description', $project->description ?? '') }}</textarea>
+                @error('description')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+
+            {{-- Technologies Used --}}
+            <div class="mb-3">
+                <label for="technologies_used" class="form-label">Technologies Used (comma-separated)</label>
+                <input type="text" class="form-control @error('technologies_used') is-invalid @enderror" id="technologies_used" name="technologies_used" value="{{ old('technologies_used', is_array($project->technologies_used ?? null) ? implode(',', $project->technologies_used) : ($project->technologies_used ?? '')) }}">
+                 @error('technologies_used')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+                <small class="form-text text-muted">e.g., Laravel, Vue.js, MySQL, Docker</small>
+            </div>
+
+            {{-- Project Images Upload --}}
+            <div class="mb-3">
+                <label for="images" class="form-label">Add Project Images</label>
+                <div class="custom-file-upload">
+                    <input type="file" class="form-control @error('images.*') is-invalid @enderror @error('images') is-invalid @enderror" 
+                           id="images" name="images[]" multiple accept="image/*"
+                           onchange="handleImagePreview(this)">
+                    <div id="image-preview-container" class="mt-3 row g-2">
+                        {{-- Preview images will be inserted here --}}
+                    </div>
+                </div>
+                @error('images.*')
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                @enderror
+                @error('images')
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                @enderror
+                <small class="form-text text-muted">You can select multiple images. Supported formats: JPEG, PNG, JPG, GIF, SVG, WEBP. Max size: 2MB per image.</small>
+            </div>
+
+            {{-- Existing Images --}}
+            @if(isset($project) && $project->images && $project->images->isNotEmpty())
+                <div class="mb-3">
+                    <label class="form-label">Existing Images</label>
+                    <div class="row g-3" id="existing-images-container">
+                        @foreach($project->images as $image)
+                            <div class="col-md-4 existing-image-container">
+                                <div class="card h-100">
+                                    <img src="{{ asset('storage/' . $image->image_path) }}" 
+                                         alt="Project Image" 
+                                         class="card-img-top"
+                                         style="height: 200px; object-fit: cover;">
+                                    <div class="card-body">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" 
+                                                   type="radio" 
+                                                   name="featured_image_id" 
+                                                   id="featured_image_{{ $image->id }}" 
+                                                   value="{{ $image->id }}" 
+                                                   {{ $image->is_featured ? 'checked' : '' }}>
+                                            <label class="form-check-label" for="featured_image_{{ $image->id }}">
+                                                Set as Featured
+                                            </label>
+                                        </div>
+                                        <button type="button" 
+                                                class="btn btn-danger btn-sm w-100 delete-image-btn" 
+                                                data-image-id="{{ $image->id }}" 
+                                                data-delete-url="{{ route('admin.projects.delete-image') }}">
+                                            <i class="fas fa-trash-alt me-1"></i> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            @if(!$project)
+                <div class="mb-3">
+                    <label for="featured_image_index" class="form-label">Featured Image</label>
+                    <select class="form-select" id="featured_image_index" name="featured_image_index">
+                        <option value="-1">None</option>
+                        {{-- Options will be populated by JS --}}
+                    </select>
+                    <small class="form-text text-muted">Select which uploaded image should be the featured image.</small>
+                </div>
+            @endif
         </div>
 
-        <!-- Category -->
-        <div class="sm:col-span-3">
-            <label for="category_id" class="block text-sm font-medium text-gray-700">Category</label>
-            <div class="mt-1">
-                <select name="category_id" id="category_id"
-                        class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
-                    <option value="">Select a category</option>
-                    @foreach($categories as $category)
-                        <option value="{{ $category->id }}"
-                                {{ old('category_id', $project?->category_id) == $category->id ? 'selected' : '' }}>
-                            {{ $category->name }}
+        <div class="col-md-4">
+            {{-- Category --}}
+            <div class="mb-3">
+                <label for="category_id" class="form-label">Category <span class="text-danger">*</span></label>
+                <select class="form-select @error('category_id') is-invalid @enderror" id="category_id" name="category_id" required>
+                    <option value="">Select Category</option>
+                    @foreach($categories as $id => $name)
+                        <option value="{{ $id }}" {{ old('category_id', $project->category_id ?? '') == $id ? 'selected' : '' }}>
+                            {{ $name }}
                         </option>
                     @endforeach
                 </select>
+                @error('category_id')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
             </div>
-            @error('category_id')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
 
-        <!-- Status -->
-        <div class="sm:col-span-3">
-            <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
-            <div class="mt-1">
-                <select name="status" id="status"
-                        class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
-                    <option value="ongoing" {{ old('status', $project?->status) == 'ongoing' ? 'selected' : '' }}>
-                        Ongoing
-                    </option>
-                    <option value="completed" {{ old('status', $project?->status) == 'completed' ? 'selected' : '' }}>
-                        Completed
-                    </option>
+            {{-- Status --}}
+            <div class="mb-3">
+                <label for="status" class="form-label">Status <span class="text-danger">*</span></label>
+                <select class="form-select @error('status') is-invalid @enderror" id="status" name="status" required>
+                    <option value="ongoing" {{ old('status', $project->status ?? 'ongoing') == 'ongoing' ? 'selected' : '' }}>Ongoing</option>
+                    <option value="completed" {{ old('status', $project->status ?? 'ongoing') == 'completed' ? 'selected' : '' }}>Completed</option>
                 </select>
+                 @error('status')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
             </div>
-            @error('status')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
 
-        <!-- Description -->
-        <div class="sm:col-span-6">
-            <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
-            <div class="mt-1">
-                <textarea name="description" id="description" rows="5"
-                          class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">{{ old('description', $project?->description) }}</textarea>
+            {{-- Project URL --}}
+            <div class="mb-3">
+                <label for="project_url" class="form-label">Project URL</label>
+                <input type="url" class="form-control @error('project_url') is-invalid @enderror" id="project_url" name="project_url" value="{{ old('project_url', $project->project_url ?? '') }}">
+                 @error('project_url')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
             </div>
-            @error('description')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
 
-        <!-- Technologies Used -->
-        <div class="sm:col-span-6">
-            <label for="technologies_used" class="block text-sm font-medium text-gray-700">
-                Technologies Used (comma-separated)
-            </label>
-            <div class="mt-1">
-                <input type="text" name="technologies_used" id="technologies_used"
-                       value="{{ old('technologies_used', $project ? implode(',', $project->technologies_used) : '') }}"
-                       class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+            {{-- Start Date --}}
+            <div class="mb-3">
+                <label for="start_date" class="form-label">Start Date</label>
+                <input type="date" class="form-control @error('start_date') is-invalid @enderror" id="start_date" name="start_date" value="{{ old('start_date', isset($project->start_date) ? $project->start_date->format('Y-m-d') : '') }}">
+                @error('start_date')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
             </div>
-            @error('technologies_used')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
 
-        <!-- Project URL -->
-        <div class="sm:col-span-6">
-            <label for="project_url" class="block text-sm font-medium text-gray-700">Project URL</label>
-            <div class="mt-1">
-                <input type="url" name="project_url" id="project_url"
-                       value="{{ old('project_url', $project?->project_url) }}"
-                       class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+            {{-- End Date --}}
+            <div class="mb-3">
+                <label for="end_date" class="form-label">End Date</label>
+                <input type="date" class="form-control @error('end_date') is-invalid @enderror" id="end_date" name="end_date" value="{{ old('end_date', isset($project->end_date) ? $project->end_date->format('Y-m-d') : '') }}">
+                 @error('end_date')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
             </div>
-            @error('project_url')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
 
-        <!-- Dates -->
-        <div class="sm:col-span-3">
-            <label for="start_date" class="block text-sm font-medium text-gray-700">Start Date</label>
-            <div class="mt-1">
-                <input type="date" name="start_date" id="start_date"
-                       value="{{ old('start_date', $project?->start_date?->format('Y-m-d')) }}"
-                       class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+            {{-- Is Featured --}}
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" value="1" id="is_featured" name="is_featured" {{ old('is_featured', $project->is_featured ?? false) ? 'checked' : '' }}>
+                <label class="form-check-label" for="is_featured">
+                    Featured Project
+                </label>
             </div>
-            @error('start_date')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
-
-        <div class="sm:col-span-3">
-            <label for="end_date" class="block text-sm font-medium text-gray-700">End Date</label>
-            <div class="mt-1">
-                <input type="date" name="end_date" id="end_date"
-                       value="{{ old('end_date', $project?->end_date?->format('Y-m-d')) }}"
-                       class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
-            </div>
-            @error('end_date')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
-
-        <!-- Featured Image -->
-        <div class="sm:col-span-6">
-            <label for="featured_image" class="block text-sm font-medium text-gray-700">Featured Image</label>
-            <div class="mt-1">
-                <input type="file" name="featured_image" id="featured_image"
-                       accept="image/*"
-                       class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300">
-            </div>
-            @if($project?->featured_image)
-                <div class="mt-2">
-                    <img src="{{ asset('storage/' . $project->featured_image) }}" 
-                         alt="Current featured image"
-                         class="h-32 w-32 object-cover rounded">
-                </div>
-            @endif
-            @error('featured_image')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
-        </div>
-
-        <!-- Additional Images -->
-        <div class="sm:col-span-6">
-            <label for="images" class="block text-sm font-medium text-gray-700">Additional Images</label>
-            <div class="mt-1">
-                <input type="file" name="images[]" id="images"
-                       accept="image/*"
-                       multiple
-                       class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300">
-            </div>
-            @if($project?->images)
-                <div class="mt-2 grid grid-cols-3 gap-4">
-                    @foreach($project->images as $image)
-                        <div class="relative group">
-                            <img src="{{ asset('storage/' . $image) }}" 
-                                 alt="Project image"
-                                 class="h-32 w-full object-cover rounded">
-                            <button type="button"
-                                    onclick="deleteImage('{{ $image }}', {{ $project->id }})"
-                                    class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
-                        </div>
-                    @endforeach
-                </div>
-            @endif
-            @error('images')
-                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-            @enderror
         </div>
     </div>
+
+    <hr>
 
     <div class="pt-5">
         <div class="flex justify-end">
@@ -194,30 +191,187 @@
     </div>
 </form>
 
+@push('styles')
+<style>
+.custom-file-upload {
+    position: relative;
+}
+
+.preview-image-container {
+    position: relative;
+    margin-bottom: 1rem;
+}
+
+.preview-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 0.375rem;
+}
+
+.preview-remove-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: none;
+    border-radius: 50%;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.preview-remove-btn:hover {
+    background-color: #dc3545;
+    color: white;
+}
+
+.featured-badge {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    background-color: rgba(0, 123, 255, 0.9);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+}
+</style>
+@endpush
+
 @push('scripts')
 <script>
-function deleteImage(image, projectId) {
-    if (confirm('Are you sure you want to delete this image?')) {
-        fetch('{{ route('admin.projects.delete-image') }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({
-                project_id: projectId,
-                image: image
+document.addEventListener('DOMContentLoaded', function () {
+    // Handle deleting existing images via AJAX
+    document.querySelectorAll('.delete-image-btn').forEach(button => {
+        button.addEventListener('click', function () {
+            if (!confirm('Are you sure you want to delete this image?')) {
+                return;
+            }
+
+            const imageId = this.dataset.imageId;
+            const deleteUrl = this.dataset.deleteUrl;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            const container = this.closest('.existing-image-container');
+
+            fetch(deleteUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
+                body: JSON.stringify({ image_id: imageId })
             })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Remove the image element from the DOM
-                const imageElement = event.target.closest('.relative');
-                imageElement.remove();
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    container.remove();
+                    // Check if there are any remaining featured images
+                    const featuredImages = document.querySelectorAll('input[name="featured_image_id"]:checked');
+                    if (featuredImages.length === 0) {
+                        // Select the first available image as featured if exists
+                        const firstImage = document.querySelector('input[name="featured_image_id"]');
+                        if (firstImage) {
+                            firstImage.checked = true;
+                        }
+                    }
+                } else {
+                    alert('Failed to delete image.');
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting image:', error);
+                alert('An error occurred while deleting the image.');
+            });
+        });
+    });
+});
+
+function handleImagePreview(input) {
+    const previewContainer = document.getElementById('image-preview-container');
+    const featuredImageSelect = document.getElementById('featured_image_index');
+    
+    // Clear existing previews
+    previewContainer.innerHTML = '';
+    
+    // Reset featured image select
+    if (featuredImageSelect) {
+        while (featuredImageSelect.options.length > 1) {
+            featuredImageSelect.remove(1);
+        }
+    }
+
+    if (input.files) {
+        Array.from(input.files).forEach((file, index) => {
+            // Create preview container
+            const col = document.createElement('div');
+            col.className = 'col-md-4';
+            
+            // Create card
+            const card = document.createElement('div');
+            card.className = 'card h-100 preview-image-container';
+            
+            // Create preview image
+            const img = document.createElement('img');
+            img.className = 'card-img-top preview-image';
+            img.file = file;
+            
+            // Create remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'preview-remove-btn';
+            removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+            removeBtn.onclick = function() {
+                col.remove();
+                updateFeaturedImageOptions();
+            };
+            
+            // Add to DOM
+            card.appendChild(img);
+            card.appendChild(removeBtn);
+            col.appendChild(card);
+            previewContainer.appendChild(col);
+            
+            // Create file reader to display preview
+            const reader = new FileReader();
+            reader.onload = (function(aImg) { 
+                return function(e) { 
+                    aImg.src = e.target.result; 
+                }; 
+            })(img);
+            reader.readAsDataURL(file);
+            
+            // Add to featured image select if exists
+            if (featuredImageSelect) {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `Image ${index + 1}: ${file.name}`;
+                featuredImageSelect.appendChild(option);
             }
         });
     }
+}
+
+function updateFeaturedImageOptions() {
+    const featuredImageSelect = document.getElementById('featured_image_index');
+    if (!featuredImageSelect) return;
+    
+    // Clear existing options except "None"
+    while (featuredImageSelect.options.length > 1) {
+        featuredImageSelect.remove(1);
+    }
+    
+    // Get all preview images
+    const previews = document.querySelectorAll('.preview-image-container img');
+    previews.forEach((img, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = `Image ${index + 1}: ${img.file.name}`;
+        featuredImageSelect.appendChild(option);
+    });
 }
 </script>
 @endpush 

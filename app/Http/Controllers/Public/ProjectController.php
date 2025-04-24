@@ -29,7 +29,7 @@ class ProjectController extends Controller
 
     public function show(Project $project)
     {
-        $project->load('category');
+        $project->load('category', 'images');
 
         $relatedProjects = Project::where('category_id', $project->category_id)
             ->where('id', '!=', $project->id)

@@ -23,28 +23,45 @@
                 <div class="space-y-12">
                     @forelse($posts as $post)
                         <div class="group bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-                            @if($post->featured_image)
-                                <div class="relative overflow-hidden">
-                                    <img src="{{ asset('storage/' . $post->featured_image) }}" 
+                            @if($post->images->where('is_featured', true)->first())
+                                <div class="relative h-72 overflow-hidden">
+                                    <img src="{{ $post->images->where('is_featured', true)->first()->image_path }}" 
                                          alt="{{ $post->title }}"
-                                         class="w-full h-64 object-cover transform group-hover:scale-105 transition-transform duration-300">
+                                         class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300">
                                     <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                                    <div class="absolute bottom-0 left-0 right-0 p-6">
+                                        <div class="flex items-center text-sm text-white mb-2">
+                                            <span class="inline-block px-3 py-1 rounded-full text-sm font-semibold bg-indigo-600/80">
+                                                {{ $post->created_at->format('F j, Y') }}
+                                            </span>
+                                            <span class="mx-2">&bull;</span>
+                                            <span>{{ $post->reading_time }} min read</span>
+                                        </div>
+                                        <h2 class="text-2xl font-bold text-white group-hover:text-indigo-200 transition-colors">
+                                            <a href="{{ route('blog.show', $post) }}">
+                                                {{ $post->title }}
+                                            </a>
+                                        </h2>
+                                    </div>
+                                </div>
+                            @else
+                                <div class="p-8">
+                                    <div class="flex items-center text-sm mb-4">
+                                        <span class="inline-block px-4 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-pink-500 to-rose-500 text-white">
+                                            {{ $post->created_at->format('F j, Y') }}
+                                        </span>
+                                        <span class="mx-2 text-gray-400">&bull;</span>
+                                        <span class="text-gray-500">{{ $post->reading_time }} min read</span>
+                                    </div>
+                                    <h2 class="text-2xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                                        <a href="{{ route('blog.show', $post) }}">
+                                            {{ $post->title }}
+                                        </a>
+                                    </h2>
                                 </div>
                             @endif
                             
-                            <div class="p-8">
-                                <div class="flex items-center text-sm mb-4">
-                                    <span class="inline-block px-4 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-pink-500 to-rose-500 text-white">
-                                        {{ $post->created_at->format('F j, Y') }}
-                                    </span>
-                                    <span class="mx-2 text-gray-400">&bull;</span>
-                                    <span class="text-gray-500">{{ $post->reading_time }} min read</span>
-                                </div>
-                                <h2 class="text-2xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                                    <a href="{{ route('blog.show', $post) }}">
-                                        {{ $post->title }}
-                                    </a>
-                                </h2>
+                            <div class="p-8 pt-0">
                                 <p class="mt-4 text-gray-600">
                                     {{ Str::limit(strip_tags($post->content), 200) }}
                                 </p>
@@ -103,20 +120,23 @@
                     </div>
                 </div>
 
-                <!-- Tags -->
-                <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
-                    <div class="p-6">
-                        <h2 class="text-xl font-bold text-gray-900 mb-6">Popular Tags</h2>
-                        <div class="flex flex-wrap gap-2">
-                            @foreach($tags as $tag)
-                                <a href="{{ route('blog.index', ['tag' => $tag->slug]) }}"
-                                   class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600 transition-all">
-                                    {{ $tag->name }}
-                                </a>
-                            @endforeach
+                <!-- Popular Tags -->
+                @if(isset($tags) && $tags->isNotEmpty())
+                    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                        <div class="p-6">
+                            <h2 class="text-xl font-bold text-gray-900 mb-6">Popular Tags</h2>
+                            <div class="flex flex-wrap gap-2">
+                                @foreach($tags as $tag)
+                                    <a href="{{ route('blog.index', ['tag' => $tag->slug]) }}"
+                                       class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600 transition-all">
+                                        {{ $tag->name }}
+                                        <span class="ml-1 text-pink-100">{{ $tag->posts_count }}</span>
+                                    </a>
+                                @endforeach
+                            </div>
                         </div>
                     </div>
-                </div>
+                @endif
             </div>
         </div>
     </div>

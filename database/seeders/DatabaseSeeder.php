@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             ProjectCategorySeeder::class,
             ProjectSeeder::class,
+            AdminSeeder::class
         ]);
     }
 }

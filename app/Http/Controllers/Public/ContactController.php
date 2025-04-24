@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Public;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ContactRequest;
 use App\Mail\ContactFormMail;
-use App\Models\Newsletter;
+use App\Models\NewsletterSubscriber;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
@@ -29,17 +29,17 @@ class ContactController extends Controller
     public function subscribe(Request $request)
     {
         $validated = $request->validate([
-            'email' => ['required', 'email', 'unique:newsletters,email']
+            'email' => ['required', 'email', 'unique:newsletter_subscribers,email']
         ]);
 
-        Newsletter::create($validated);
+        NewsletterSubscriber::create($validated);
 
         return back()->with('success', 'Thank you for subscribing to my newsletter!');
     }
 
     public function unsubscribe($email)
     {
-        Newsletter::where('email', $email)->delete();
+        NewsletterSubscriber::where('email', $email)->delete();
 
         return back()->with('success', 'You have been successfully unsubscribed.');
     }

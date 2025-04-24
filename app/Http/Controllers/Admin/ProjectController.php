@@ -5,113 +5,193 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\ProjectCategory;
-use App\Http\Requests\ProjectRequest;
+use App\Models\ProjectImage;
 use Illuminate\Http\Request;
+use Illuminate\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ProjectController extends Controller
 {
-    public function index()
+    public function index(): View
     {
-        $projects = Project::with('category')->latest()->paginate(10);
+        $projects = Project::with('category')
+                           ->withCount('images')
+                           ->latest()
+                           ->paginate(10);
         return view('admin.projects.index', compact('projects'));
     }
 
-    public function create()
+    public function create(): View
     {
-        $categories = ProjectCategory::all();
+        $categories = ProjectCategory::orderBy('name')->pluck('name', 'id');
         return view('admin.projects.create', compact('categories'));
     }
 
-    public function store(ProjectRequest $request)
+    public function store(Request $request): RedirectResponse
     {
-        $data = $request->validated();
-        $data['slug'] = Str::slug($data['title']);
-        $data['technologies_used'] = explode(',', $request->technologies_used);
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'category_id' => 'required|exists:project_categories,id',
+            'description' => 'required|string',
+            'technologies_used' => 'nullable|string',
+            'project_url' => 'nullable|url',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'status' => 'required|in:ongoing,completed',
+            'is_featured' => 'boolean',
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
+            'featured_image_index' => 'nullable|integer',
+        ]);
 
-        if ($request->hasFile('featured_image')) {
-            $data['featured_image'] = $request->file('featured_image')->store('projects', 'public');
-        }
+        // Convert checkbox value
+        $validated['is_featured'] = $request->has('is_featured');
+        
+        // Convert technologies string to array
+        $validated['technologies_used'] = $request->technologies_used ? explode(',', $request->technologies_used) : [];
 
-        $project = Project::create($data);
+        $project = Project::create($validated);
 
         if ($request->hasFile('images')) {
-            $images = [];
-            foreach ($request->file('images') as $image) {
-                $images[] = $image->store('projects', 'public');
+            foreach ($request->file('images') as $index => $imageFile) {
+                // Get original file extension
+                $extension = $imageFile->getClientOriginalExtension();
+                
+                // Generate a unique filename with the original extension
+                $filename = Str::uuid() . '.' . $extension;
+                
+                // Store the file with the custom filename
+                $path = $imageFile->storeAs('projects', $filename, 'public');
+                
+                // Verify the file was stored successfully
+                if (!Storage::disk('public')->exists($path)) {
+                    continue; // Skip if file wasn't stored properly
+                }
+                
+                $project->images()->create([
+                    'image_path' => $path,
+                    'is_featured' => ($index == $request->input('featured_image_index', -1)),
+                    'display_order' => $index + 1,
+                ]);
             }
-            $project->images = $images;
-            $project->save();
         }
 
         return redirect()->route('admin.projects.index')
             ->with('success', 'Project created successfully.');
     }
 
-    public function edit(Project $project)
+    public function show(Project $project): View
     {
-        $categories = ProjectCategory::all();
+        // Typically redirect to edit for admin
+        return $this->edit($project);
+    }
+
+    public function edit(Project $project): View
+    {
+        $categories = ProjectCategory::orderBy('name')->pluck('name', 'id');
+        $project->load('images'); // Ensure images are loaded
         return view('admin.projects.edit', compact('project', 'categories'));
     }
 
-    public function update(ProjectRequest $request, Project $project)
+    public function update(Request $request, Project $project): RedirectResponse
     {
-        $data = $request->validated();
-        $data['slug'] = Str::slug($data['title']);
-        $data['technologies_used'] = explode(',', $request->technologies_used);
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'category_id' => 'required|exists:project_categories,id',
+            'description' => 'required|string',
+            'technologies_used' => 'nullable|string',
+            'project_url' => 'nullable|url',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'status' => 'required|in:ongoing,completed',
+            'is_featured' => 'boolean',
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
+            'featured_image_id' => 'nullable|exists:project_images,id,project_id,' . $project->id,
+        ]);
 
-        if ($request->hasFile('featured_image')) {
-            if ($project->featured_image) {
-                Storage::disk('public')->delete($project->featured_image);
-            }
-            $data['featured_image'] = $request->file('featured_image')->store('projects', 'public');
-        }
+        // Convert checkbox value
+        $validated['is_featured'] = $request->has('is_featured');
 
+        // Convert technologies string to array
+        $validated['technologies_used'] = $request->technologies_used ? explode(',', $request->technologies_used) : [];
+
+        $project->update($validated);
+
+        // Handle new image uploads
         if ($request->hasFile('images')) {
-            $images = $project->images ?? [];
-            foreach ($request->file('images') as $image) {
-                $images[] = $image->store('projects', 'public');
+            $nextOrder = ($project->images()->max('display_order') ?? 0) + 1;
+            foreach ($request->file('images') as $index => $imageFile) {
+                // Get original file extension
+                $extension = $imageFile->getClientOriginalExtension();
+                
+                // Generate a unique filename with the original extension
+                $filename = Str::uuid() . '.' . $extension;
+                
+                // Store the file with the custom filename
+                $path = $imageFile->storeAs('projects', $filename, 'public');
+                
+                // Verify the file was stored successfully
+                if (!Storage::disk('public')->exists($path)) {
+                    continue; // Skip if file wasn't stored properly
+                }
+                
+                $project->images()->create([
+                    'image_path' => $path,
+                    'is_featured' => false,
+                    'display_order' => $nextOrder + $index,
+                ]);
             }
-            $data['images'] = $images;
         }
 
-        $project->update($data);
+        // Handle setting featured image
+        if ($request->filled('featured_image_id')) {
+            $project->images()->update(['is_featured' => false]); // Unset others
+            ProjectImage::where('id', $request->featured_image_id)
+                      ->where('project_id', $project->id)
+                      ->update(['is_featured' => true]);
+        }
 
         return redirect()->route('admin.projects.index')
             ->with('success', 'Project updated successfully.');
     }
 
-    public function destroy(Project $project)
+    public function destroy(Project $project): RedirectResponse
     {
-        if ($project->featured_image) {
-            Storage::disk('public')->delete($project->featured_image);
+        // Delete associated images from storage
+        foreach ($project->images as $image) {
+            $this->deleteImageFile($image->image_path);
         }
-
-        if ($project->images) {
-            foreach ($project->images as $image) {
-                Storage::disk('public')->delete($image);
-            }
-        }
-
+        
         $project->delete();
 
         return redirect()->route('admin.projects.index')
             ->with('success', 'Project deleted successfully.');
     }
 
-    public function deleteImage(Request $request)
+    private function deleteImageFile(?string $imagePath): void
     {
-        $project = Project::findOrFail($request->project_id);
-        $images = $project->images;
-
-        if (($key = array_search($request->image, $images)) !== false) {
-            Storage::disk('public')->delete($request->image);
-            unset($images[$key]);
-            $project->images = array_values($images);
-            $project->save();
+        if ($imagePath && Storage::disk('public')->exists($imagePath)) {
+            Storage::disk('public')->delete($imagePath);
         }
+    }
 
-        return response()->json(['success' => true]);
+    public function deleteImage(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'image_id' => 'required|exists:project_images,id'
+        ]);
+        
+        $image = ProjectImage::findOrFail($request->image_id);
+        
+        // Delete the image file
+        $this->deleteImageFile($image->image_path);
+        
+        // Delete the database record
+        $image->delete();
+
+        return back()->with('success', 'Image deleted successfully.');
     }
 } 
